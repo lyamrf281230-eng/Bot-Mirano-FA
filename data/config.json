@@ -1,0 +1,75 @@
+{
+  "1515638499171373126": {
+    "logChannel": "1543525197745758270",
+    "welcomeChannel": "1543525199176015963",
+    "welcomeMessage": "Bienvenue {user} sur {server} !",
+    "antiLink": true,
+    "antiSpam": true,
+    "antiRaid": true,
+    "maxMessages": 6,
+    "spamWindow": 5000,
+    "raidMaxJoins": 6,
+    "raidWindow": 10000
+  },
+  "1541154170059358220": {
+    "logChannel": null,
+    "welcomeChannel": null,
+    "antiSpam": true,
+    "antiLink": true,
+    "antiRaid": true,
+    "maxMessages": 6,
+    "spamWindow": 5000,
+    "raidMaxJoins": 6,
+    "raidWindow": 10000,
+    "prefix": "+",
+    "antiDiscord": true,
+    "verification": true
+  },
+  "1545896801465270282": {
+    "logChannel": null,
+    "welcomeChannel": "1545901804611436574",
+    "antiSpam": true,
+    "antiLink": true,
+    "antiRaid": true,
+    "maxMessages": 6,
+    "spamWindow": 5000,
+    "raidMaxJoins": 6,
+    "raidWindow": 10000,
+    "autorole": "1545901473488175216"
+  },
+  "1545925004192129054": {
+    "logChannel": null,
+    "welcomeChannel": "1545925005735366743",
+    "antiSpam": true,
+    "antiLink": true,
+    "antiRaid": true,
+    "maxMessages": 6,
+    "spamWindow": 5000,
+    "raidMaxJoins": 6,
+    "raidWindow": 10000,
+    "autorole": "1545925004510896149"
+  },
+  "1547484017748869200": {
+    "logChannel": "1551608170277896242",
+    "welcomeChannel": "1551608171464761504",
+    "antiSpam": true,
+    "antiLink": true,
+    "antiRaid": true,
+    "maxMessages": 6,
+    "spamWindow": 5000,
+    "raidMaxJoins": 6,
+    "raidWindow": 10000
+  },
+  "1505534938605420574": {
+    "logChannel": null,
+    "welcomeChannel": "1548377163307290675",
+    "antiSpam": true,
+    "antiLink": true,
+    "antiRaid": true,
+    "maxMessages": 6,
+    "spamWindow": 5000,
+    "raidMaxJoins": 6,
+    "raidWindow": 10000,
+    "autorole": "1548377076762157237"
+  }
+}
