@@ -502,9 +502,9 @@ module.exports = {
                 .addComponents(menu);
 
             const embed = new EmbedBuilder()
-                .setTitle("📚 Mirano FA")
+                .setTitle("📚 KokoroBots")
                 .setDescription(
-                    "Bienvenue sur *Mirano FA*\n\n" +
+                    "Bienvenue sur *KokoroBots*\n\n" +
                     "Sélectionne une catégorie dans le menu ci-dessous " +
                     "pour afficher ses commandes.\n\n" +
                     `📚 **${Object.keys(categories).length} catégories disponibles**\n\n` +
@@ -512,7 +512,7 @@ module.exports = {
                     `💡 Utilise **${PREFIX}help** à tout moment pour rouvrir ce menu.`
                 )
                 .setFooter({
-                    text: "Mirano FA • Menu d'aide"
+                    text: "KokoroBots • Menu d'aide"
                 })
                 .setTimestamp();
 
@@ -556,7 +556,7 @@ module.exports = {
                         `**${category.description}**\n\n${commandList}`
                     )
                     .setFooter({
-                        text: "Mirano FA • Menu d'aide"
+                        text: "KokoroBots • Menu d'aide"
                     })
                     .setTimestamp();
 
@@ -574,7 +574,7 @@ module.exports = {
                             `help_expired_${message.author.id}`
                         )
                         .setPlaceholder(
-                            "⏱️ Menu expiré — Fait +help connard"
+                            "⏱️ Menu expiré — Fait +help (KokoroBots)"
                         )
                         .setDisabled(true)
                         .addOptions({
@@ -1203,7 +1203,7 @@ module.exports = {
                 botMember.roles.highest.position
             ) {
                 return message.reply(
-                    "❌ Mon rôle doit être au-dessus de ce rôle."
+                    "❌ Mon rôle est trop élever au tien."
                 );
             }
 
