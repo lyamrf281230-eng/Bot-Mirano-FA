@@ -122,7 +122,7 @@ client.once("ready", () => {
     client.user.setPresence({
         activities: [
             {
-                name: "Support - KokoroBots :tools:",
+                name: "Support - KokoroBots",
                 type: 1,
                 url: "https://www.twitch.tv/KokoroBots"
             }
