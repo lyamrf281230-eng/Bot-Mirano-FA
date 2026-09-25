@@ -122,9 +122,9 @@ client.once("ready", () => {
     client.user.setPresence({
         activities: [
             {
-                name: "Mirano FA",
+                name: "Support - KokoroBots :tools:",
                 type: 1,
-                url: "https://www.twitch.tv/Mirano FA"
+                url: "https://www.twitch.tv/KokoroBots"
             }
         ],
         status: "dnd"
@@ -143,7 +143,7 @@ client.on("messageCreate", async message => {
         !message.mentions.everyone
     ) {
         return message.reply(
-            "Salut 👋, mon préfix est `+`"
+            "Salut 👋, mon préfix est `${PREFIX}`"
         );
     }
 
