@@ -122,7 +122,7 @@ client.once("ready", () => {
     client.user.setPresence({
         activities: [
             {
-                name: "+help | !"Azk",
+                name: "+help | Azk",
                 type: 1,
                 url: "https://www.twitch.tv/Azk"
             }
