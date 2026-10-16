@@ -502,9 +502,9 @@ module.exports = {
                 .addComponents(menu);
 
             const embed = new EmbedBuilder()
-                .setTitle("📚 Someone Bot")
+                .setTitle("📚 !"Azk")
                 .setDescription(
-                    "Bienvenue sur *Someone Bot*\n\n" +
+                    "Bienvenue sur *!"Azk*\n\n" +
                     "Sélectionne une catégorie dans le menu ci-dessous " +
                     "pour afficher ses commandes.\n\n" +
                     `📚 **${Object.keys(categories).length} catégories disponibles**\n\n` +
@@ -512,7 +512,7 @@ module.exports = {
                     `💡 Utilise **${PREFIX}help** à tout moment pour rouvrir ce menu.`
                 )
                 .setFooter({
-                    text: "Someone Bot • Menu d'aide"
+                    text: "!"Azk • Menu d'aide"
                 })
                 .setTimestamp();
 
@@ -1959,11 +1959,11 @@ module.exports = {
 
             const embed =
                 new EmbedBuilder()
-                    .setTitle("📢 ANNONCE KOKOROBOTS")
+                    .setTitle("📢 ANNONCE")
                     .setDescription(text)
                     .setTimestamp()
                     .setFooter({
-                        text: "Annonce par KokoroBots"
+                        text: "Annonce par !"Azk"
                     });
 
             return message.channel.send({
