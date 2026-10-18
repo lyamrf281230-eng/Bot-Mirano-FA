@@ -124,7 +124,7 @@ client.once("ready", () => {
             {
                 name: "+help | midi minuit",
                 type: 1,
-                url: "https://www.twitch.tv/midiminuit
+                url: "https://www.twitch.tv/midiminuit"
             }
         ],
         status: "dnd"
