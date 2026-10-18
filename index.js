@@ -350,49 +350,71 @@ client.on("guildMemberRemove", async member => {
 // ======================================================
 
 client.on("interactionCreate", async interaction => {
-
-    if (!interaction.isButton()) return;
-
-    // Créer ticket
+    // Menu de sélection des tickets
     if (
-        interaction.customId ===
-        "ticket_create"
+        interaction.isStringSelectMenu() &&
+        interaction.customId === "ticket_select"
     ) {
         const guild = interaction.guild;
+        const user = interaction.user;
+        const category = interaction.values[0];
 
-        const existing =
-            guild.channels.cache.find(
-                channel =>
-                    channel.name ===
-                        `ticket-${interaction.user.id}` &&
-                    channel.type ===
-                        ChannelType.GuildText
-            );
+        const categories = {
+            support: {
+                label: "Support",
+                emoji: "🎧"
+            },
+            recrutement: {
+                label: "Recrutement",
+                emoji: "📋"
+            },
+            achat: {
+                label: "Achat",
+                emoji: "🛒"
+            },
+            owner: {
+                label: "Owner",
+                emoji: "👑"
+            }
+        };
 
-        if (existing) {
+        const selected = categories[category];
+
+        if (!selected || !guild) {
             return interaction.reply({
-                content:
-                    `❌ Tu as déjà un ticket : ${existing}`,
+                content: "❌ Catégorie invalide.",
                 ephemeral: true
             });
         }
 
-        const channel =
-            await guild.channels.create({
-                name:
-                    `ticket-${interaction.user.id}`,
+        const existing = guild.channels.cache.find(channel =>
+            channel.type === ChannelType.GuildText &&
+            channel.topic?.includes(`owner:${user.id}`)
+        );
+
+        if (existing) {
+            return interaction.reply({
+                content: `❌ Tu as déjà un ticket : ${existing}`,
+                ephemeral: true
+            });
+        }
+
+        await interaction.deferReply({ ephemeral: true });
+
+        try {
+            const channel = await guild.channels.create({
+                name: `ticket-${category}-${user.id}`,
                 type: ChannelType.GuildText,
+                topic: `owner:${user.id};category:${category}`,
                 permissionOverwrites: [
                     {
-                        id:
-                            guild.roles.everyone.id,
+                        id: guild.roles.everyone.id,
                         deny: [
                             PermissionsBitField.Flags.ViewChannel
                         ]
                     },
                     {
-                        id:
-                            interaction.user.id,
+                        id: user.id,
                         allow: [
                             PermissionsBitField.Flags.ViewChannel,
                             PermissionsBitField.Flags.SendMessages,
@@ -400,89 +422,90 @@ client.on("interactionCreate", async interaction => {
                         ]
                     },
                     {
-                        id:
-                            client.user.id,
+                        id: client.user.id,
                         allow: [
                             PermissionsBitField.Flags.ViewChannel,
                             PermissionsBitField.Flags.SendMessages,
-                            PermissionsBitField.Flags.ManageChannels,
-                            PermissionsBitField.Flags.ReadMessageHistory
+                            PermissionsBitField.Flags.ReadMessageHistory,
+                            PermissionsBitField.Flags.ManageChannels
                         ]
                     }
                 ]
             });
 
-        const row =
-            new ActionRowBuilder()
+            const closeRow = new ActionRowBuilder()
                 .addComponents(
                     new ButtonBuilder()
-                        .setCustomId(
-                            "ticket_close"
-                        )
-                        .setLabel("Fermer")
+                        .setCustomId("ticket_close")
+                        .setLabel("Fermer le ticket")
                         .setEmoji("🔒")
-                        .setStyle(
-                            ButtonStyle.Danger
-                        )
+                        .setStyle(ButtonStyle.Danger)
                 );
 
-        const embed =
-            new EmbedBuilder()
-                .setTitle("🎫 Ticket")
+            const embed = new EmbedBuilder()
+                .setTitle(`${selected.emoji}・Ticket ${selected.label}`)
                 .setDescription(
-                    "Explique ton problème ici.\nUn membre du staff viendra t'aider."
+                    `Bonjour ${user} !\n\n` +
+                    `Ta demande concerne : **${selected.label}**.\n` +
+                    "Explique ta demande ici, le staff pourra te répondre."
                 )
+                .setColor(0x5865F2)
                 .setTimestamp();
 
-        await channel.send({
-            content:
-                `${interaction.user}`,
-            embeds: [embed],
-            components: [row]
-        });
+            await channel.send({
+                content: `${user}`,
+                embeds: [embed],
+                components: [closeRow]
+            });
 
-        await interaction.reply({
-            content:
-                `✅ Ticket créé : ${channel}`,
-            ephemeral: true
-        });
+            await interaction.editReply({
+                content: `✅ Ton ticket ${selected.label} a été créé : ${channel}`
+            });
 
-        await sendLog(
-            guild,
-            `🎫 Ticket créé par **${interaction.user.tag}** : ${channel}`
-        );
+            await sendLog(
+                guild,
+                `🎫 Ticket **${selected.label}** créé par **${user.tag}** : ${channel}`
+            );
+        } catch (error) {
+            console.error("Erreur ticket :", error);
+
+            await interaction.editReply({
+                content: "❌ Impossible de créer le ticket. Vérifie les permissions du bot."
+            }).catch(() => {});
+        }
+
+        return;
     }
 
-    // Fermer ticket
-    if (
-        interaction.customId ===
-        "ticket_close"
-    ) {
-        if (
-            !interaction.member.permissions.has(
-                PermissionsBitField.Flags.ManageChannels
-            )
-        ) {
+    // Les autres interactions gérées ici sont des boutons
+    if (!interaction.isButton()) return;
+
+    if (interaction.customId === "ticket_close") {
+        const channel = interaction.channel;
+        const userId = interaction.user.id;
+        const isOwner = channel?.topic?.includes(`owner:${userId}`);
+        const canManage = interaction.memberPermissions?.has(
+            PermissionsBitField.Flags.ManageChannels
+        );
+
+        if (!isOwner && !canManage) {
             return interaction.reply({
-                content:
-                    "❌ Permission insuffisante.",
+                content: "❌ Tu ne peux pas fermer ce ticket.",
                 ephemeral: true
             });
         }
 
-        await interaction.reply(
-            "🔒 Fermeture du ticket..."
-        );
+        await interaction.reply({
+            content: "🔒 Fermeture du ticket..."
+        });
 
         await sendLog(
             interaction.guild,
-            `🔒 Ticket fermé par **${interaction.user.tag}**.`
+            `🔒 Ticket ${channel} fermé par **${interaction.user.tag}**.`
         );
 
         setTimeout(() => {
-            interaction.channel
-                .delete()
-                .catch(() => {});
+            channel.delete().catch(() => {});
         }, 1500);
     }
 });
