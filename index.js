@@ -122,9 +122,9 @@ client.once("ready", () => {
     client.user.setPresence({
         activities: [
             {
-                name: "+help | Azk",
+                name: "+help | midi minuit",
                 type: 1,
-                url: "https://www.twitch.tv/Azk"
+                url: "https://www.twitch.tv/midiminuit
             }
         ],
         status: "dnd"

@@ -502,9 +502,9 @@ module.exports = {
                 .addComponents(menu);
 
             const embed = new EmbedBuilder()
-                .setTitle("📚 Azk")
+                .setTitle("📚 midi minuit")
                 .setDescription(
-                    "Bienvenue sur *Azk*\n\n" +
+                    "Bienvenue sur *midi minuit*\n\n" +
                     "Sélectionne une catégorie dans le menu ci-dessous " +
                     "pour afficher ses commandes.\n\n" +
                     `📚 **${Object.keys(categories).length} catégories disponibles**\n\n` +
@@ -512,7 +512,7 @@ module.exports = {
                     `💡 Utilise **${PREFIX}help** à tout moment pour rouvrir ce menu.`
                 )
                 .setFooter({
-                    text: "Azk • Menu d'aide"
+                    text: "midi minuit • Menu d'aide"
                 })
                 .setTimestamp();
 
@@ -1963,7 +1963,7 @@ module.exports = {
                     .setDescription(text)
                     .setTimestamp()
                     .setFooter({
-                        text: "Annonce par Azk"
+                        text: "Annonce par midi minuit"
                     });
 
             return message.channel.send({
@@ -2179,45 +2179,63 @@ module.exports = {
         // TICKET
         // ==================================================
 
-        if (command === "ticket") {
+if (command === "ticket") {
+    if (!message.member.permissions.has(
+        PermissionsBitField.Flags.ManageChannels
+    )) {
+        return message.reply("❌ Permission insuffisante.");
+    }
 
-            if (!message.member.permissions.has(
-                PermissionsBitField.Flags.ManageChannels
-            )) {
-                return message.reply(
-                    "❌ Permission insuffisante."
-                );
+    const menu = new StringSelectMenuBuilder()
+        .setCustomId("ticket_select")
+        .setPlaceholder("🎫 Choisis une catégorie de ticket")
+        .addOptions(
+            {
+                label: "Support",
+                description: "Besoin d'aide ou un problème",
+                value: "support",
+                emoji: "🎧"
+            },
+            {
+                label: "Recrutement",
+                description: "Postuler pour rejoindre le staff",
+                value: "recrutement",
+                emoji: "📋"
+            },
+            {
+                label: "Achat",
+                description: "Question sur un achat",
+                value: "achat",
+                emoji: "🛒"
+            },
+            {
+                label: "Owner",
+                description: "Contacter le propriétaire",
+                value: "owner",
+                emoji: "👑"
             }
+        );
 
-            const row =
-                new ActionRowBuilder()
-                    .addComponents(
-                        new ButtonBuilder()
-                            .setCustomId(
-                                "ticket_create"
-                            )
-                            .setLabel(
-                                "Créer un ticket"
-                            )
-                            .setEmoji("🎫")
-                            .setStyle(
-                                ButtonStyle.Primary
-                            )
-                    );
+    const row = new ActionRowBuilder()
+        .addComponents(menu);
 
-            const embed =
-                new EmbedBuilder()
-                    .setTitle("🎫 SUPPORT")
-                    .setDescription(
-                        "Clique sur le bouton pour ouvrir un ticket."
-                    )
-                    .setTimestamp();
+    const embed = new EmbedBuilder()
+        .setTitle("🎫・OUVRIR UN TICKET")
+        .setDescription(
+            "Choisis la catégorie correspondant à ta demande dans le menu ci-dessous.\n\n" +
+            "🎧 **Support**\n" +
+            "📋 **Recrutement**\n" +
+            "🛒 **Achat**\n" +
+            "👑 **Owner**"
+        )
+        .setColor(0x5865F2)
+        .setTimestamp();
 
-            return message.channel.send({
-                embeds: [embed],
-                components: [row]
-            });
-        }
+    return message.channel.send({
+        embeds: [embed],
+        components: [row]
+    });
+}
 
         // ==================================================
         // SET LOGS
