@@ -974,11 +974,11 @@ client.on("interactionCreate", async interaction => {
 // CONNEXION
 // ======================================================
 
-if (!process.env.TOKEN) {
+if (!process.env.DISCORD_TOKEN) {
     console.error("❌ Le TOKEN est absent du fichier .env");
     process.exit(1);
 }
 
-client.login(process.env.TOKEN).catch(error => {
+client.login(process.env.DISCORD_TOKEN).catch(error => {
     console.error("❌ Connexion Discord impossible :", error);
 });
