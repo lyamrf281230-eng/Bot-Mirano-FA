@@ -11,7 +11,8 @@ const {
     StringSelectMenuBuilder,
     ModalBuilder,
     TextInputBuilder,
-    TextInputStyle
+    TextInputStyle,
+    AttachmentBuilder
 } = require("discord.js");
 
 require("dotenv").config();
@@ -41,6 +42,8 @@ const WARNINGS_FILE = path.join(DATA_DIR, "warnings.json");
 
 const spamMap = new Map();
 const raidMap = new Map();
+const giveawayMap = new Map();
+const xpCooldown = new Map();
 
 if (!fs.existsSync(DATA_DIR)) {
     fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -80,6 +83,7 @@ function getConfig(guildId) {
             antiSpam: true,
             antiLink: true,
             antiRaid: true,
+            antiNuke: true,
             maxMessages: 6,
             spamWindow: 5000,
             raidMaxJoins: 6,
@@ -194,10 +198,108 @@ async function replyPrivate(interaction, content) {
 }
 
 // ======================================================
+// OUTILS GIVEAWAY / VÉRIFICATION
+// ======================================================
+
+async function startGiveaway(message, prize, durationMs) {
+    const endAt = Date.now() + durationMs;
+
+    const embed = new EmbedBuilder()
+        .setTitle("🎉 GIVEAWAY")
+        .setDescription(
+            `**Lot :** ${prize}\n\nClique sur 🎉 Participer pour rejoindre le tirage.\n**Fin :** <t:${Math.floor(endAt / 1000)}:R>\n**Organisateur :** ${message.author}`
+        )
+        .setColor(0xF1C40F)
+        .setTimestamp();
+
+    const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+            .setCustomId("giveaway_enter")
+            .setLabel("Participer")
+            .setEmoji("🎉")
+            .setStyle(ButtonStyle.Success)
+    );
+
+    const giveawayMessage = await message.channel.send({
+        embeds: [embed],
+        components: [row]
+    });
+
+    giveawayMap.set(giveawayMessage.id, {
+        guildId: message.guild.id,
+        channelId: message.channel.id,
+        prize,
+        entrants: new Set(),
+        ended: false
+    });
+
+    await message.reply(`✅ Giveaway créé : ${giveawayMessage}`);
+
+    setTimeout(async () => {
+        const data = giveawayMap.get(giveawayMessage.id);
+
+        if (!data || data.ended) return;
+
+        data.ended = true;
+
+        const entrants = [...data.entrants];
+
+        const winnerId = entrants.length
+            ? entrants[Math.floor(Math.random() * entrants.length)]
+            : null;
+
+        const endedEmbed = EmbedBuilder.from(embed)
+            .setTitle("🎉 GIVEAWAY TERMINÉ")
+            .setDescription(
+                `**Lot :** ${prize}\n**Participants :** ${entrants.length}\n**Gagnant :** ${winnerId ? `<@${winnerId}>` : "Aucun participant"}`
+            )
+            .setColor(0x2ECC71);
+
+        await giveawayMessage.edit({
+            embeds: [endedEmbed],
+            components: []
+        }).catch(() => {});
+
+        if (winnerId) {
+            await message.channel.send(
+                `🎉 Félicitations <@${winnerId}> ! Tu remportes **${prize}**.`
+            ).catch(() => {});
+        }
+
+        giveawayMap.delete(giveawayMessage.id);
+    }, durationMs);
+
+    return giveawayMessage;
+}
+
+async function sendVerificationPanel(message) {
+    const embed = new EmbedBuilder()
+        .setTitle("🔐 Vérification")
+        .setDescription(
+            "Clique sur **Je suis humain** pour obtenir le rôle de membre vérifié.\n\nLe rôle à attribuer doit être configuré avec `+setverified @role`."
+        )
+        .setColor(0x5865F2);
+
+    const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+            .setCustomId("verify_member")
+            .setLabel("Je suis humain")
+            .setEmoji("✅")
+            .setStyle(ButtonStyle.Success)
+    );
+
+    return message.channel.send({
+        embeds: [embed],
+        components: [row]
+    });
+}
+
+// ======================================================
 // BOT CONNECTÉ
 // ======================================================
 
 client.once("ready", () => {
+
     console.log("=================================");
     console.log(`✅ Logs Bot : ${client.user.tag}`);
     console.log(`🌐 Serveurs : ${client.guilds.cache.size}`);
@@ -236,10 +338,40 @@ client.on("messageCreate", async message => {
 
     const config = getConfig(message.guild.id);
 
+    // XP : un gain toutes les 60 secondes
+    if (!message.content.startsWith(PREFIX)) {
+        const xpKey = `${message.guild.id}:${message.author.id}`;
+        const nowForXp = Date.now();
+
+        if (
+            !xpCooldown.has(xpKey) ||
+            nowForXp - xpCooldown.get(xpKey) >= 60000
+        ) {
+            xpCooldown.set(xpKey, nowForXp);
+
+            const xpFile = path.join(DATA_DIR, "xp.json");
+            const xpData = loadJSON(xpFile);
+
+            if (!xpData[message.guild.id]) {
+                xpData[message.guild.id] = {};
+            }
+
+            if (!xpData[message.guild.id][message.author.id]) {
+                xpData[message.guild.id][message.author.id] = {
+                    xp: 0
+                };
+            }
+
+            xpData[message.guild.id][message.author.id].xp +=
+                10 + Math.floor(Math.random() * 11);
+
+            saveJSON(xpFile, xpData);
+        }
+    }
+
     // ANTI-SPAM
     if (config.antiSpam) {
         const now = Date.now();
-
         const messages = spamMap.get(message.author.id) || [];
 
         const recent = messages.filter(
@@ -327,7 +459,9 @@ client.on("messageCreate", async message => {
                 updateConfig,
                 loadJSON,
                 saveJSON,
-                WARNINGS_FILE
+                WARNINGS_FILE,
+                startGiveaway,
+                sendVerificationPanel
             }
         );
     } catch (error) {
@@ -345,9 +479,7 @@ client.on("messageCreate", async message => {
 
 client.on("interactionCreate", async interaction => {
     try {
-        // ==================================================
         // MENU DE SÉLECTION DES TICKETS
-        // ==================================================
 
         if (
             interaction.isStringSelectMenu() &&
@@ -462,173 +594,167 @@ client.on("interactionCreate", async interaction => {
 
             await sendLog(
                 guild,
-                `🎫 Ticket **${selected.label}** créé par **${user.tag}** : ${channel}`
+                `🎫 Ticket créé par **${user.tag}** : ${channel} (${selected.label}).`
             );
 
             return;
         }
 
         // ==================================================
-        // BOUTONS : CLAIM, AJOUTER, RETIRER, FERMER
+        // BOUTONS DES TICKETS
         // ==================================================
 
-        if (interaction.isButton()) {
-            const customId = interaction.customId;
+        if (
+            interaction.isButton() &&
+            interaction.customId.startsWith("ticket_")
+        ) {
             const channel = interaction.channel;
-            const guild = interaction.guild;
 
-            if (
-                [
-                    "ticket_claim",
-                    "ticket_add_member",
-                    "ticket_remove_member",
-                    "ticket_close"
-                ].includes(customId)
-            ) {
-                if (!guild || !isTicketChannel(channel)) {
-                    return replyPrivate(
-                        interaction,
-                        "❌ Cette action fonctionne uniquement dans un ticket."
-                    );
-                }
-
-                const ownerId = getTicketOwner(channel);
-                const staff = isStaff(interaction);
-
-                // CLAIM
-                if (customId === "ticket_claim") {
-                    if (!staff) {
-                        return replyPrivate(
-                            interaction,
-                            "❌ Seul le staff autorisé peut prendre un ticket."
-                        );
-                    }
-
-                    const currentClaim = getTicketClaim(channel);
-
-                    if (currentClaim) {
-                        return replyPrivate(
-                            interaction,
-                            `⚠️ Ce ticket est déjà pris en charge par <@${currentClaim}>.`
-                        );
-                    }
-
-                    await channel.setTopic(
-                        `${channel.topic};claim:${interaction.user.id}`
-                    );
-
-                    await interaction.reply({
-                        content: `🙋 ${interaction.user} prend en charge ce ticket.`
-                    });
-
-                    await sendLog(
-                        guild,
-                        `🙋 Ticket ${channel} pris en charge par **${interaction.user.tag}**.`
-                    );
-
-                    return;
-                }
-
-                // AJOUTER / RETIRER UN MEMBRE
-                if (
-                    customId === "ticket_add_member" ||
-                    customId === "ticket_remove_member"
-                ) {
-                    if (!staff) {
-                        return replyPrivate(
-                            interaction,
-                            "❌ Seul le staff autorisé peut gérer les membres du ticket."
-                        );
-                    }
-
-                    const adding = customId === "ticket_add_member";
-
-                    const modal = new ModalBuilder()
-                        .setCustomId(
-                            adding
-                                ? "ticket_add_member_modal"
-                                : "ticket_remove_member_modal"
-                        )
-                        .setTitle(
-                            adding
-                                ? "Ajouter un membre"
-                                : "Retirer un membre"
-                        );
-
-                    const memberInput = new TextInputBuilder()
-                        .setCustomId("member_id")
-                        .setLabel("ID Discord du membre")
-                        .setPlaceholder("Exemple : 123456789012345678")
-                        .setStyle(TextInputStyle.Short)
-                        .setRequired(true)
-                        .setMinLength(17)
-                        .setMaxLength(20);
-
-                    modal.addComponents(
-                        new ActionRowBuilder().addComponents(memberInput)
-                    );
-
-                    await interaction.showModal(modal);
-                    return;
-                }
-
-                // FERMER LE TICKET
-                if (customId === "ticket_close") {
-                    if (
-                        interaction.user.id !== ownerId &&
-                        !staff
-                    ) {
-                        return replyPrivate(
-                            interaction,
-                            "❌ Seul le créateur du ticket ou le staff autorisé peut le fermer."
-                        );
-                    }
-
-                    await interaction.reply({
-                        content: "🔒 Fermeture du ticket..."
-                    });
-
-                    await sendLog(
-                        guild,
-                        `🔒 Ticket ${channel} fermé par **${interaction.user.tag}**.`
-                    );
-
-                    setTimeout(() => {
-                        channel.delete().catch(() => {});
-                    }, 1500);
-
-                    return;
-                }
+            if (!isTicketChannel(channel)) {
+                return replyPrivate(
+                    interaction,
+                    "❌ Ce salon n'est pas un ticket reconnu."
+                );
             }
 
-            return;
+            const ticketOwner = getTicketOwner(channel);
+
+            // CLAIM
+            if (interaction.customId === "ticket_claim") {
+                if (!isStaff(interaction)) {
+                    return replyPrivate(
+                        interaction,
+                        "❌ Réservé au staff."
+                    );
+                }
+
+                const currentClaim = getTicketClaim(channel);
+
+                if (currentClaim) {
+                    return replyPrivate(
+                        interaction,
+                        `❌ Ce ticket est déjà pris en charge par <@${currentClaim}>.`
+                    );
+                }
+
+                await channel.setTopic(
+                    `${channel.topic};claim:${interaction.user.id}`
+                );
+
+                await interaction.reply({
+                    content: `🙋 Ticket pris en charge par ${interaction.user}.`,
+                    allowedMentions: { users: [interaction.user.id] }
+                });
+
+                await sendLog(
+                    interaction.guild,
+                    `🙋 ${interaction.user.tag} a pris en charge ${channel}.`
+                );
+
+                return;
+            }
+
+            // AJOUTER UN MEMBRE
+            if (interaction.customId === "ticket_add_member") {
+                if (!isStaff(interaction)) {
+                    return replyPrivate(
+                        interaction,
+                        "❌ Réservé au staff."
+                    );
+                }
+
+                const modal = new ModalBuilder()
+                    .setCustomId("ticket_add_modal")
+                    .setTitle("Ajouter un membre");
+
+                const memberInput = new TextInputBuilder()
+                    .setCustomId("member_id")
+                    .setLabel("ID Discord du membre")
+                    .setPlaceholder("Exemple : 123456789012345678")
+                    .setStyle(TextInputStyle.Short)
+                    .setRequired(true);
+
+                modal.addComponents(
+                    new ActionRowBuilder().addComponents(memberInput)
+                );
+
+                return interaction.showModal(modal);
+            }
+
+            // RETIRER UN MEMBRE
+            if (interaction.customId === "ticket_remove_member") {
+                if (!isStaff(interaction)) {
+                    return replyPrivate(
+                        interaction,
+                        "❌ Réservé au staff."
+                    );
+                }
+
+                const modal = new ModalBuilder()
+                    .setCustomId("ticket_remove_modal")
+                    .setTitle("Retirer un membre");
+
+                const memberInput = new TextInputBuilder()
+                    .setCustomId("member_id")
+                    .setLabel("ID Discord du membre")
+                    .setPlaceholder("Exemple : 123456789012345678")
+                    .setStyle(TextInputStyle.Short)
+                    .setRequired(true);
+
+                modal.addComponents(
+                    new ActionRowBuilder().addComponents(memberInput)
+                );
+
+                return interaction.showModal(modal);
+            }
+
+            // FERMER LE TICKET
+            if (interaction.customId === "ticket_close") {
+                const isOwner = interaction.user.id === ticketOwner;
+
+                if (!isOwner && !isStaff(interaction)) {
+                    return replyPrivate(
+                        interaction,
+                        "❌ Seul l'auteur du ticket ou le staff peut le fermer."
+                    );
+                }
+
+                await interaction.reply({
+                    content: "🔒 Fermeture du ticket dans 3 secondes..."
+                });
+
+                await sendLog(
+                    interaction.guild,
+                    `🔒 Ticket ${channel.name} fermé par **${interaction.user.tag}**.`
+                );
+
+                setTimeout(() => {
+                    channel.delete(
+                        `Ticket fermé par ${interaction.user.tag}`
+                    ).catch(() => {});
+                }, 3000);
+
+                return;
+            }
         }
 
         // ==================================================
-        // FORMULAIRES : AJOUTER / RETIRER UN MEMBRE
+        // FORMULAIRES : AJOUT / RETRAIT DE MEMBRES
         // ==================================================
 
         if (
             interaction.isModalSubmit() &&
-            [
-                "ticket_add_member_modal",
-                "ticket_remove_member_modal"
-            ].includes(interaction.customId)
+            (
+                interaction.customId === "ticket_add_modal" ||
+                interaction.customId === "ticket_remove_modal"
+            )
         ) {
             const channel = interaction.channel;
-            const guild = interaction.guild;
 
-            if (!guild || !isTicketChannel(channel)) {
+            if (!isTicketChannel(channel) || !isStaff(interaction)) {
                 return replyPrivate(
                     interaction,
-                    "❌ Ce salon n'est pas un ticket valide."
-                );
-            }
-
-            if (!isStaff(interaction)) {
-                return replyPrivate(
-                    interaction,
-                    "❌ Permission insuffisante."
+                    "❌ Action impossible ou permissions insuffisantes."
                 );
             }
 
@@ -639,11 +765,14 @@ client.on("interactionCreate", async interaction => {
             if (!/^\d{17,20}$/.test(memberId)) {
                 return replyPrivate(
                     interaction,
-                    "❌ ID Discord invalide."
+                    "❌ L'ID Discord semble invalide."
                 );
             }
 
-            const member = await guild.members
+            const adding =
+                interaction.customId === "ticket_add_modal";
+
+            const member = await interaction.guild.members
                 .fetch(memberId)
                 .catch(() => null);
 
@@ -654,166 +783,202 @@ client.on("interactionCreate", async interaction => {
                 );
             }
 
-            const adding =
-                interaction.customId === "ticket_add_member_modal";
-
-            const ownerId = getTicketOwner(channel);
-
-            if (!adding && member.id === ownerId) {
-                return replyPrivate(
-                    interaction,
-                    "❌ Tu ne peux pas retirer l'accès au créateur du ticket."
-                );
-            }
-
-            if (!adding && member.id === client.user.id) {
-                return replyPrivate(
-                    interaction,
-                    "❌ Tu ne peux pas retirer l'accès au bot."
-                );
-            }
-
-            await interaction.deferReply({
-                ephemeral: true
-            });
-
             if (adding) {
-                await channel.permissionOverwrites.edit(
-                    member.id,
-                    {
-                        ViewChannel: true,
-                        SendMessages: true,
-                        ReadMessageHistory: true
-                    }
-                );
-
-                await interaction.editReply({
-                    content: `✅ ${member} peut maintenant accéder au ticket.`
+                await channel.permissionOverwrites.edit(member.id, {
+                    ViewChannel: true,
+                    SendMessages: true,
+                    ReadMessageHistory: true
                 });
 
-                await channel.send(
-                    `➕ ${member} a été ajouté au ticket par ${interaction.user}.`
-                );
+                await interaction.reply({
+                    content: `✅ ${member} a été ajouté au ticket.`,
+                    allowedMentions: { users: [member.id] }
+                });
 
                 await sendLog(
-                    guild,
-                    `➕ **${member.user.tag}** ajouté au ticket ${channel} par **${interaction.user.tag}**.`
+                    interaction.guild,
+                    `➕ ${member.user.tag} ajouté à ${channel} par ${interaction.user.tag}.`
                 );
             } else {
-                const overwrite =
-                    channel.permissionOverwrites.cache.get(member.id);
-
-                if (overwrite) {
-                    await channel.permissionOverwrites.delete(member.id);
-                } else {
-                    await channel.permissionOverwrites.edit(
-                        member.id,
-                        {
-                            ViewChannel: false,
-                            SendMessages: false,
-                            ReadMessageHistory: false
-                        }
+                if (member.id === getTicketOwner(channel)) {
+                    return replyPrivate(
+                        interaction,
+                        "❌ Tu ne peux pas retirer l'auteur du ticket."
                     );
                 }
 
-                await interaction.editReply({
-                    content: `✅ L'accès de ${member} au ticket a été retiré.`
+                await channel.permissionOverwrites.delete(member.id)
+                    .catch(() => {});
+
+                await interaction.reply({
+                    content: `✅ ${member} a été retiré du ticket.`,
+                    allowedMentions: { users: [member.id] }
                 });
 
-                await channel.send(
-                    `➖ L'accès de ${member} a été retiré par ${interaction.user}.`
-                );
-
                 await sendLog(
-                    guild,
-                    `➖ Accès de **${member.user.tag}** retiré du ticket ${channel} par **${interaction.user.tag}**.`
+                    interaction.guild,
+                    `➖ ${member.user.tag} retiré de ${channel} par ${interaction.user.tag}.`
                 );
             }
 
             return;
         }
+
+        // ==================================================
+        // PARTICIPATION AU GIVEAWAY
+        // ==================================================
+
+        if (
+            interaction.isButton() &&
+            interaction.customId === "giveaway_enter"
+        ) {
+            const giveaway = giveawayMap.get(
+                interaction.message.id
+            );
+
+            if (!giveaway || giveaway.ended) {
+                return replyPrivate(
+                    interaction,
+                    "❌ Ce giveaway est terminé."
+                );
+            }
+
+            if (giveaway.entrants.has(interaction.user.id)) {
+                return replyPrivate(
+                    interaction,
+                    "⚠️ Tu participes déjà à ce giveaway."
+                );
+            }
+
+            giveaway.entrants.add(interaction.user.id);
+
+            return replyPrivate(
+                interaction,
+                "🎉 Tu participes maintenant au giveaway !"
+            );
+        }
+
+        // ==================================================
+        // VÉRIFICATION DES MEMBRES
+        // ==================================================
+
+        if (
+            interaction.isButton() &&
+            interaction.customId === "verify_member"
+        ) {
+            const config = getConfig(interaction.guild.id);
+            const roleId = config.verifiedRole;
+
+            if (!roleId) {
+                return replyPrivate(
+                    interaction,
+                    "❌ Aucun rôle configuré. Demande au staff d'utiliser `+setverified @role`."
+                );
+            }
+
+            const role = interaction.guild.roles.cache.get(roleId);
+
+            if (!role) {
+                return replyPrivate(
+                    interaction,
+                    "❌ Le rôle configuré n'existe plus."
+                );
+            }
+
+            const member = await interaction.guild.members
+                .fetch(interaction.user.id);
+
+            if (member.roles.cache.has(role.id)) {
+                return replyPrivate(
+                    interaction,
+                    "✅ Tu es déjà vérifié."
+                );
+            }
+
+            await member.roles.add(role);
+
+            return replyPrivate(
+                interaction,
+                "✅ Vérification réussie !"
+            );
+        }
+
     } catch (error) {
         console.error("Erreur interaction :", error);
 
         if (interaction.isRepliable()) {
             await replyPrivate(
                 interaction,
-                "❌ Une erreur est survenue. Vérifie les permissions du bot."
+                "❌ Une erreur est survenue pendant cette action."
             ).catch(() => {});
         }
     }
 });
 
-// ======================================================
-// ARRIVÉE D'UN MEMBRE
-// ======================================================
+        // ==================================================
+        // ANTI-NUKE : ALERTES UNIQUEMENT
+        // ==================================================
 
-client.on("guildMemberAdd", async member => {
-    const guild = member.guild;
-    const config = getConfig(guild.id);
+        client.on("channelDelete", async channel => {
+            if (!channel.guild) return;
 
-    if (config.antiRaid) {
-        const now = Date.now();
-        const joins = raidMap.get(guild.id) || [];
+            const config = getConfig(channel.guild.id);
+            if (!config.antiNuke) return;
 
-        const recent = joins.filter(
-            time => now - time <= config.raidWindow
-        );
-
-        recent.push(now);
-        raidMap.set(guild.id, recent);
-
-        if (recent.length >= config.raidMaxJoins) {
             await sendLog(
-                guild,
-                `🚨 **ANTI-RAID** : ${recent.length} arrivées rapides détectées.`
+                channel.guild,
+                `🚨 **ALERTE ANTI-NUKE**\nUn salon vient d'être supprimé : **${channel.name}**. Vérifie les journaux d'audit du serveur.`
             );
-        }
-    }
+        });
 
-    if (config.welcomeChannel) {
-        const channel = guild.channels.cache.get(
-            config.welcomeChannel
-        );
+        client.on("roleDelete", async role => {
+            const config = getConfig(role.guild.id);
+            if (!config.antiNuke) return;
 
-        if (channel && channel.isTextBased()) {
-            await channel.send(
-                `👋 Bienvenue ${member} sur **${guild.name}** !`
-            ).catch(() => {});
-        }
-    }
+            await sendLog(
+                role.guild,
+                `🚨 **ALERTE ANTI-NUKE**\nLe rôle **${role.name}** vient d'être supprimé.`
+            );
+        });
 
-    await sendLog(
-        guild,
-        `📥 **${member.user.tag}** a rejoint le serveur.`
-    );
-});
+        client.on("guildBanAdd", async ban => {
+            const config = getConfig(ban.guild.id);
+            if (!config.antiNuke) return;
 
-// ======================================================
-// DÉPART D'UN MEMBRE
-// ======================================================
+            await sendLog(
+                ban.guild,
+                `🚨 **ALERTE ANTI-NUKE**\nLe membre **${ban.user.tag}** vient d'être banni.`
+            );
+        });
 
-client.on("guildMemberRemove", async member => {
-    await sendLog(
-        member.guild,
-        `📤 **${member.user.tag}** a quitté le serveur.`
-    );
-});
+        client.on("guildUpdate", async (oldGuild, newGuild) => {
+            const config = getConfig(newGuild.id);
+            if (!config.antiNuke) return;
 
-// ======================================================
-// ERREURS
-// ======================================================
+            if (oldGuild.name !== newGuild.name) {
+                await sendLog(
+                    newGuild,
+                    `🚨 **ALERTE ANTI-NUKE**\nNom du serveur modifié : **${oldGuild.name}** → **${newGuild.name}**.`
+                );
+            }
 
-process.on("unhandledRejection", error => {
-    console.error("Unhandled rejection :", error);
-});
-
-process.on("uncaughtException", error => {
-    console.error("Uncaught exception :", error);
-});
+            if (oldGuild.icon !== newGuild.icon) {
+                await sendLog(
+                    newGuild,
+                    "🚨 **ALERTE ANTI-NUKE**\nL'icône du serveur a été modifiée."
+                );
+            }
+        });
 
 // ======================================================
 // CONNEXION
 // ======================================================
 
-client.login(process.env.DISCORD_TOKEN);
+if (!process.env.TOKEN) {
+    console.error("❌ Le TOKEN est absent du fichier .env");
+    process.exit(1);
+}
+
+client.login(process.env.TOKEN).catch(error => {
+    console.error("❌ Connexion Discord impossible :", error);
+});
