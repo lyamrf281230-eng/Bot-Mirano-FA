@@ -502,9 +502,9 @@ module.exports = {
                 .addComponents(menu);
 
             const embed = new EmbedBuilder()
-                .setTitle("📚 midi minuit")
+                .setTitle("📚 Divinity RP")
                 .setDescription(
-                    "Bienvenue sur *midi minuit*\n\n" +
+                    "Bienvenue sur *Divinity RP*\n\n" +
                     "Sélectionne une catégorie dans le menu ci-dessous " +
                     "pour afficher ses commandes.\n\n" +
                     `📚 **${Object.keys(categories).length} catégories disponibles**\n\n` +
@@ -512,7 +512,7 @@ module.exports = {
                     `💡 Utilise **${PREFIX}help** à tout moment pour rouvrir ce menu.`
                 )
                 .setFooter({
-                    text: "midi minuit • Menu d'aide"
+                    text: "Divinity RP • Menu d'aide"
                 })
                 .setTimestamp();
 
@@ -556,7 +556,7 @@ module.exports = {
                         `**${category.description}**\n\n${commandList}`
                     )
                     .setFooter({
-                        text: "KokoroBots • Menu d'aide"
+                        text: "Divinity RP • Menu d'aide"
                     })
                     .setTimestamp();
 
@@ -574,7 +574,7 @@ module.exports = {
                             `help_expired_${message.author.id}`
                         )
                         .setPlaceholder(
-                            "⏱️ Menu expiré — Fait +help (KokoroBots)"
+                            "⏱️ Menu expiré — Fait +help"
                         )
                         .setDisabled(true)
                         .addOptions({
@@ -1963,7 +1963,7 @@ module.exports = {
                     .setDescription(text)
                     .setTimestamp()
                     .setFooter({
-                        text: "Annonce par midi minuit"
+                        text: "Annonce par Divinity RP"
                     });
 
             return message.channel.send({
